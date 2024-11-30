@@ -1,6 +1,8 @@
 # Auxilary functions for CM
-
+#
 # Some functionality was reused from the CK framework for compatibility
+#
+# Written by Grigori Fursin
 
 import os
 
@@ -139,6 +141,37 @@ def save_json_or_yaml(file_name, meta, sort_keys=False, encoding = 'utf8'):
     return {'return':ERROR_UNKNOWN_FILE_EXTENSION, 'error':'unknown file extension'}
 
 ###########################################################################
+def safe_load_json(path, file_name='', encoding='utf8'):
+    """
+    Load JSON file if exists, otherwise return empty dict
+
+    Args:    
+       (CM input dict):
+
+       file_name (str): file name
+       (encoding) (str): file encoding ('utf8' by default)
+
+    Returns:
+       (CM return dict):
+
+       * return (int): return code == 0 if no error and >0 if error
+       * (error) (str): error string if return>0
+
+       * meta (dict): meta from the file
+
+    """
+
+    path_to_file = os.path.join(path, file_name) if file_name == '' or path != file_name else path
+
+    meta = {}
+
+    r = load_json(path_to_file, check_if_exists=True, encoding=encoding)
+    if r['return'] == 0:
+        meta = r['meta']
+
+    return {'return':0, 'meta': meta}
+
+###########################################################################
 def load_json(file_name, check_if_exists = False, encoding='utf8'):
     """
     Load JSON file.
@@ -171,10 +204,9 @@ def load_json(file_name, check_if_exists = False, encoding='utf8'):
         try:
             meta = json.load(jf)
         except Exception as e:
-            return {'return':4, 'error': format(e)}
+            return {'return':4, 'error': f'detected problem in {file_name}: {e}'}
 
-    return {'return':0,
-            'meta': meta}
+    return {'return':0, 'meta': meta}
 
 ###########################################################################
 def save_json(file_name, meta={}, indent=2, sort_keys=True, encoding = 'utf8'):
@@ -242,7 +274,7 @@ def load_yaml(file_name, check_if_exists = False, encoding = 'utf8'):
                 # To support old versions
                 meta = yaml.safe_load(yf)
         except Exception as e:
-            return {'return':4, 'error': format(e)}
+            return {'return':4, 'error': f'detected problem in {file_name}: {e}'}
 
     return {'return':0,
             'meta': meta}
@@ -606,7 +638,7 @@ def is_cm_uid(obj):
     return True
 
 ###########################################################################
-def parse_cm_object(obj, max_length = 2):
+def parse_cm_object(obj, max_length = 2, decompose = False):
     """
     Parse CM object in string and return tuple of CM objects.
 
@@ -677,8 +709,12 @@ def parse_cm_object(obj, max_length = 2):
 
         cm_object.insert(0, sub_object)
 
-    return {'return':0, 'cm_object':cm_object}
+    rr = {'return':0, 'cm_object':cm_object}
 
+    if decompose:
+        rr['decomposed_object'] = decompose_cm_obj(cm_object)
+
+    return rr
 
 ###########################################################################
 def match_objects(uid, alias, uid2, alias2, more_strict = False):
@@ -966,7 +1002,8 @@ def find_api(file_name, func):
 
 
 ###########################################################################
-def find_file_in_current_directory_or_above(file_names, path_to_start = None, reverse = False):
+def find_file_in_current_directory_or_above(file_names, path_to_start = None, 
+        reverse = False, path_to_stop = None):
     """
     Find file(s) in the current directory or above.
 
@@ -974,6 +1011,7 @@ def find_file_in_current_directory_or_above(file_names, path_to_start = None, re
        file_names (list): files to find
        (path_to_start) (str): path to start; use current directory if None
        (reverse) (bool): if True search recursively in current directory and below.
+       (path_to_stop) (str): path to stop search (usually path to found repo)
 
     Returns:
        (CM return dict):
@@ -1024,12 +1062,15 @@ def find_file_in_current_directory_or_above(file_names, path_to_start = None, re
                       break
 
           if new_path == '':
-              break        
+              break
 
        else:
           new_path = os.path.dirname(current_path)
 
           if new_path == current_path:
+              break
+
+          if path_to_stop != None and new_path == path_to_stop:
               break
 
        found_in_current_path = False
@@ -1106,6 +1147,105 @@ def assemble_cm_object2(cm_obj):
     return assemble_cm_object(cm_obj[0], cm_obj[1])
 
 ###########################################################################
+def process_input(i, update_input = True):
+    """
+    Process automation, artifact and artifacts from i['control']
+
+    Args:    
+       control['_unparsed_automation']
+       control['_unparsed_artifact']
+       control['_unparsed_artifacts']
+
+    Returns: 
+       TBD
+
+    """
+
+    control = i['control']
+
+    for k in ['_parsed_automation', '_parsed_artifact']:
+        if k in control:
+            x = decompose_cm_obj(control[k])
+            control[k[7:]] = x
+            del(control[k])
+
+    if '_parsed_artifacts' in control:
+        control['_artifacts'] = []
+        for artifact in control['_parsed_artifacts']:
+            x = decompose_cm_obj(artifact)
+            control['_artifacts'].append(x)
+        del(control['_parsed_artifacts'])
+
+    if update_input:
+        for k in ['_automation', '_artifact']:
+            if k in control:
+                i[k[1:]] = control[k]['artifact']
+
+        artifacts = control.get('_artifacts', [])
+
+        if len(artifacts)>0:
+            i['artifacts'] = []
+            for a in artifacts:
+                i['artifacts'].append(a['artifact'])
+
+    return {'return':0}
+
+###########################################################################
+def decompose_cm_obj(cm_obj):
+    """
+    Decompose CM object into dictionary
+
+    Args:    
+      cm_obj (CM object)
+
+    Returns: 
+       (dict)
+         artifact (str)
+         name (str)
+         name_alias (str)
+         name_uid (str)
+         repo (str)
+         repo_alias (str)
+         repo_uid (str)
+
+    """
+    cm_artifact = ''
+    cm_artifact_name = ''
+    cm_artifact_name_alias = ''
+    cm_artifact_name_uid = ''
+    cm_artifact_repo = ''
+    cm_artifact_repo_alias = ''
+    cm_artifact_repo_uid = ''
+
+    if len(cm_obj)>0:
+        cm_obj_artifact = cm_obj.pop(0)
+
+        cm_artifact_alias = cm_obj_artifact[0]
+        cm_artifact_uid = cm_obj_artifact[1]
+
+        cm_artifact_name = assemble_cm_object(cm_artifact_alias, cm_artifact_uid)
+
+        cm_artifact = cm_artifact_name
+
+    if len(cm_obj)>0:
+        cm_obj_repo = cm_obj.pop(0)
+
+        cm_artifact_repo_alias = cm_obj_repo[0]
+        cm_artifact_repo_uid = cm_obj_repo[1]
+
+        cm_artifact_repo = assemble_cm_object(cm_artifact_repo_alias, cm_artifact_repo_uid)
+
+        cm_artifact = cm_artifact_repo + ':' + cm_artifact
+
+    return {'artifact':cm_artifact, 
+            'name': cm_artifact_name,
+            'name_alias': cm_artifact_alias,
+            'name_uid': cm_artifact_uid, 
+            'repo': cm_artifact_repo,
+            'repo_alias': cm_artifact_repo_alias,
+            'repo_uid': cm_artifact_repo_uid}
+
+###########################################################################
 def dump_safe_json(i):
     """
     Dump safe JSON
@@ -1180,7 +1320,8 @@ def get_current_date_time(i):
     Get current date and time.
 
     Args:    
-       (CM input dict): empty dict
+       (CM input dict): 
+         - (timezone) (str): timezone in pytz format: "Europe/Paris"
 
     Returns: 
        (CM return dict):
@@ -1204,7 +1345,14 @@ def get_current_date_time(i):
 
     a = {}
 
-    now1 = datetime.datetime.now()
+    tz = None
+
+    tz_str = i.get('timezone', '').strip()
+    if tz_str != '':
+        import pytz
+        tz = pytz.timezone(tz_str)
+
+    now1 = datetime.datetime.now(tz)
     now = now1.timetuple()
 
     a['date_year'] = now[0]
@@ -1631,3 +1779,394 @@ def rm_read_only(f, p, e):
     f(p)
 
     return
+
+##############################################################################
+def debug_here(module_path, host='localhost', port=5678, text='', env={}, env_debug_uid=''):
+    import os
+
+    if env_debug_uid!='':
+        if len(env)==0:
+            env = os.environ
+        x = env.get('CM_TMP_DEBUG_UID', '').strip()
+        if x.lower() != env_debug_uid.lower():
+            class dummy:
+               def breakpoint(self):
+                   return
+
+            return dummy()
+
+    workplace = os.path.dirname(module_path)
+
+    print ('~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~')
+    print ('Adding remote debug breakpoint ...')
+    if text != '':
+        print (text)
+
+    print ('')
+    import debugpy
+    debugpy.listen(port)
+
+    print ('')
+    print ('Waiting for debugger to attach ...')
+    print ('')
+    print ('Further actions for Visual Studio Code:')
+    print ('  Open Python file in VS to set breakpoint: {}'.format(module_path))
+    print ('  File -> Add Folder to Workplace: {}'.format(workplace))
+    print ('  Run -> Add configuration -> Python Debugger -> Remote attach -> {} -> {}'.format(host, port))
+    print ('     Сhange "remoteRoot" to ${workspaceFolder}')
+    print ('  Set breakpoint ...')
+    print ('  Run -> Start Debugging (or press F5) ...')
+    print ('')
+
+    debugpy.wait_for_client()
+
+    # Go up outside this function to continue debugging (F11 in VS)
+    return debugpy
+
+##############################################################################
+def compare_versions(version1, version2):
+    """
+    Compare versions
+
+    Args:    
+
+       version1 (str): version 1
+       version2 (str): version 2
+
+    Returns:
+       comparison (int):  1 - version 1 > version 2
+                          0 - version 1 == version 2
+                         -1 - version 1 < version 2
+    """
+
+    l_version1 = version1.split('.')
+    l_version2 = version2.split('.')
+
+    # 3.9.6 vs 3.9
+    # 3.9 vs 3.9.6
+
+    i_version1 = [int(v) if v.isdigit() else v for v in l_version1]
+    i_version2 = [int(v) if v.isdigit() else v for v in l_version2]
+
+    comparison = 0
+
+    for index in range(max(len(i_version1), len(i_version2))):
+        v1 = i_version1[index] if index < len(i_version1) else 0
+        v2 = i_version2[index] if index < len(i_version2) else 0
+
+        if v1 > v2:
+            comparison = 1
+            break
+        elif v1 < v2:
+            comparison = -1
+            break
+
+    return comparison
+
+##############################################################################
+def check_if_true_yes_on(env, key):
+    """
+    Universal check if str(env.get(key, '')).lower() in ['true', 'yes', 'on']:
+
+    Args:    
+
+       env (dict): dictionary
+       key (str): key
+
+    Returns:
+       True if str(env.get(key, '')).lower() in ['true', 'yes', 'on']:
+    """
+
+    return str(env.get(key, '')).lower() in ['true', 'yes', 'on']
+
+##############################################################################
+def check_if_none_false_no_off(env, key):
+    """
+    Universal check if str(env.get(key, '')).lower() in ['false', 'no', 'off']:
+
+    Args:    
+
+       env (dict): dictionary
+       key (str): key
+
+    Returns:
+       True if str(env.get(key, '')).lower() in ['false', 'no', 'off']:
+    """
+
+    return str(env.get(key, '')).lower() in ['none', 'false', 'no', 'off']
+
+##############################################################################
+def convert_dictionary(d, key, sub = True):
+    """
+    Grigori added to gradually clean up very complex "cm docker scrpit" implementation
+
+    Convert dictionary into flat dictionary with key prefix
+
+    Example input:
+      d = {'cfg':True, 'no-cache':True}
+      key = 'docker'
+      sub = True
+    Example output:
+      d = {'docker_cfg': True, 'docker_no_cache': True}
+
+    Args:    
+
+       d (dict): dictionary
+       key (str): key
+
+    Returns:
+       True if str(env.get(key, '')).lower() in ['false', 'no', 'off']:
+    """
+
+    dd = {}
+
+    for k in d:
+        kk = k.replace('-', '_') if sub else k
+
+        dd[key + '_' + kk] = d[k]
+
+    return dd
+
+##############################################################################
+def test_input(i):
+    """
+    Test if input has keys and report them as error
+    """
+
+    r = {'return':0}
+
+    if len(i)>0:
+        unknown_keys = list(i.keys())
+        unknown_keys_str = ', '.join(unknown_keys)
+
+        x = '' if len(unknown_keys) == 1 else 's'
+
+        r =  {'return': 1, 
+              'error': f'unknown input key{x}: {unknown_keys_str}',
+              'unknown_keys': unknown_keys,
+              'unknown_keys_str': unknown_keys_str}
+
+    return r
+
+##############################################################################
+def path2(path):
+    """
+    Add quotes if spaces in path
+    """
+    new_path = f'"{path}"' if not path.startswith('"') and ' ' in path else path
+
+    return new_path
+
+##############################################################################
+def update_dict_with_flat_key(key, value, d):
+    """
+    Update dictionary via flat key (x.y.z)
+    """
+
+    if '.' in key:
+       keys = key.split('.')
+
+       new_d = d
+
+       first = True
+
+       for key in keys[:-1]:
+           if first:
+               first = False
+
+           if key not in new_d:
+              new_d[key] = {}
+
+           new_d = new_d[key]
+
+       new_d[keys[-1]] = value
+    else:
+       d[key] = value
+
+    return {'return':0}
+
+##############################################################################
+def get_value_from_dict_with_flat_key(key, d):
+    """
+    Get value from dict via flat key (x.y.z)
+    """
+
+    if '.' in key:
+       keys = key.split('.')
+       new_d = d
+       for key in keys[:-1]:
+           if key in new_d:
+              new_d = new_d[key]
+       value = new_d.get(keys[-1])
+    else:
+       value = d.get(key)
+
+    return value
+
+##############################################################################
+def load_module(cmind, task_path, sub_module_name):
+    """
+    Universal python module loaders
+    """
+
+    import importlib
+
+    sub_module_obj = None
+
+    sub_module_path = os.path.join(task_path, sub_module_name)
+    if os.path.isfile(sub_module_path):
+        sub_module_spec = importlib.util.spec_from_file_location(sub_module_name, sub_module_path)
+        if sub_module_spec == None:
+            return cmind.prepare_error(1, f"Can\'t load Python module file spec {sub_module_path}")
+
+        try:
+           sub_module_obj = importlib.util.module_from_spec(sub_module_spec)
+           sub_module_spec.loader.exec_module(sub_module_obj)
+        except Exception as e:  # pragma: no cover
+           return cmind.prepare_error(1, f"Can\'t load Python module code {sub_module_path}:\n\n{e}")
+
+    return {'return':0, 'sub_module_obj': sub_module_obj, 'sub_module_path': sub_module_path}
+
+##############################################################################
+def flatten_dict(d, fd = {}, prefix = ''):
+    """
+    Flatten dict ({"x":{"y":"z"}} -> x.y=z)
+    """
+
+
+    for k in d:
+        v = d[k]
+
+        if type(v) == list and len(v) == 1 and type(v[0]) == dict:
+            v = v[0]
+
+        if type(v) == dict:
+           new_prefix = prefix + k + '.'
+           flatten_dict(v, fd, new_prefix)
+        else:
+           fd[prefix + k] = str(v)
+
+    return
+
+##############################################################################
+def safe_int(i, d):
+    """
+    Get safe int (useful for sorting function)
+
+    Args:    
+             i (any): variable with any type
+             d (int): default value
+
+    Returns: 
+             (int): returns i if it can be converted to int, or d otherwise
+    """
+
+    r = d
+    try:
+        r = int(i)
+    except Exception as e:
+        pass
+
+    return r
+
+##############################################################################
+def safe_float(i, d):
+    """
+    Get safe float (useful for sorting function)
+
+    Args:    
+             i (any): variable with any type
+             d (float): default value
+
+    Returns: 
+             (float): returns i if it can be converted to float or d otherwise
+
+    """
+
+    r = d
+    try:
+        r = float(i)
+    except Exception as e:
+        pass
+
+    return r
+
+##############################################################################
+def get_set(meta, key, state, keys):
+    """
+    Get value from dict and update in another dict 
+
+    Args:
+      meta (dict): original dict
+      key (str): key to get value from original dict
+      state (dict): target dict
+      keys (list): list of keys to set value in target dict
+
+    Returns:
+      (Python object): value from original dict or None
+
+    """
+
+    v = meta.get(key, None)
+    if v != None:
+        cur = state
+        vv = None
+        for k in keys:
+            if k == keys[-1]:
+                vv = cur.get(k, None)
+                if vv == None:
+                    cur[k] = v
+            else:
+                if k not in cur:
+                    cur[k] = {}
+                cur = cur[k]
+
+    return v
+
+##############################################################################
+def digits(s, first = True):
+    """
+    Get first digits and convert to int
+
+    Args:    
+      s (str): string ("1.3+xyz")
+      first (bool): if True, choose only first digits, otherwise all
+
+    Returns: 
+      (int): returns int from first digits or 0
+
+    """
+
+    v = 0
+
+    digits = ''
+    for char in s:
+        if char.isdigit():
+            digits+=char
+        elif first:
+            break
+
+    try:
+       v = int(digits)
+    except Exception as e:
+       pass
+
+    return v
+
+##############################################################################
+def substitute_template(template, variables):
+    """
+    Substitutes variables in a template string with values from a dictionary.
+
+    Args:
+        template (str): The template string with placeholders (e.g., "something-{var1}-something-{var2}").
+        vars (dict): A dictionary containing variable-value pairs (e.g., {'var1': 'a', 'var2': 'b'}).
+
+    Returns:
+        str: The template string with placeholders replaced by the corresponding values.
+    """
+    try:
+        return template.format(**variables)
+    except KeyError as e:
+        return f"Error: Missing value for {e.args[0]} in the vars dictionary."
+

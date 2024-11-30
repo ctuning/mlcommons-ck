@@ -1,4 +1,6 @@
 ﻿# Collective Mind repositories
+#
+# Written by Grigori Fursin
 
 import os
 
@@ -10,7 +12,7 @@ class Repos:
     CM repositories class
     """
 
-    def __init__(self, path, cfg, path_to_internal_repo = ''):
+    def __init__(self, path, cfg, path_to_internal_repo = '', cmx = False):
         """
         Initialize CM repositories class
 
@@ -46,6 +48,8 @@ class Repos:
         self.full_path_to_repo_paths = ''
 
         self.extra_info = {}
+
+        self.cmx = cmx
 
     ############################################################
     def load(self, init = False):
@@ -95,6 +99,17 @@ class Repos:
             r = utils.save_json(full_path_to_repo_paths, meta = self.paths)
             if r['return']>0: return r
 
+        # Skip internal repos
+        skip_internal_repos = os.environ.get('CM_CORE_SKIP_INTERNAL_REPOS','').strip().lower()
+        if skip_internal_repos not in ['1', 'true', 'yes']:
+            import pkgutil
+            for mi, name, ispkg in pkgutil.iter_modules():
+                if name.startswith('cm') and name != 'cmind':
+                    path = os.path.join(mi.path, name, 'repo')
+                    path_cmr = os.path.join(path, 'cmr.yaml')
+                    if os.path.isfile(path_cmr) and path not in self.paths:
+                        self.paths.insert(0, path)
+
         # Check internal repo (will be after local)
         if self.path_to_internal_repo != '' and os.path.isdir(self.path_to_internal_repo):
             self.paths.insert(0, self.path_to_internal_repo)
@@ -126,7 +141,7 @@ class Repos:
                     # Load description
                     repo = Repo(full_path_to_repo, self.cfg)
 
-                    r = repo.load()
+                    r = repo.load(cmx = self.cmx)
                     if r['return']>0 and r['return']!=16: return r
 
                     # Load only if desc exists
@@ -152,18 +167,21 @@ class Repos:
                 print ('WARNING: repository path {} not found (check file {})'.format(path_to_repo, full_path_to_repo_paths))
 
         # Save with correct paths
-        if len(checked_self_paths)!=len(self.paths):
-            import copy
+        if len(checked_self_paths) != len(self.paths):
 
-            self.paths = copy.deepcopy(checked_self_paths)
+            skip_fix_paths = os.environ.get('CM_CORE_SKIP_FIX_REPO_PATH','').strip().lower()
+            if skip_fix_paths not in ['1', 'true', 'yes']:
+                import copy
 
-            if self.path_to_internal_repo in checked_self_paths:
-                checked_self_paths.remove(self.path_to_internal_repo)
+                self.paths = copy.deepcopy(checked_self_paths)
 
-            print ('WARNING: fixed repo list file {}'.format(full_path_to_repo_paths))
+                if self.path_to_internal_repo in checked_self_paths:
+                    checked_self_paths.remove(self.path_to_internal_repo)
 
-            r = utils.save_json(full_path_to_repo_paths, meta = checked_self_paths)
-            if r['return']>0: return r
+                print ('WARNING: fixed repo list file {}'.format(full_path_to_repo_paths))
+
+                r = utils.save_json(full_path_to_repo_paths, meta = checked_self_paths)
+                if r['return']>0: return r
 
         return {'return':0}
 
@@ -183,6 +201,8 @@ class Repos:
             * return (int): return code == 0 if no error and >0 if error
             * (error) (str): error string if return>0
 
+            * (warnings) (list of str): warnings to install more CM repositories
+
         """
 
         # Load clean file with repo paths
@@ -193,43 +213,71 @@ class Repos:
 
         modified = False
 
+        warnings = []
+
         if mode == 'add':
             if repo_path not in paths:
-                if len(paths)>0:
-                    # Load meta of the current repo
-                    path_to_repo_desc = os.path.join(repo_path, self.cfg['file_meta_repo'])
-                    r=utils.load_yaml_and_json(file_name_without_ext=path_to_repo_desc)
+                # Load meta of the current repo
+                path_to_repo_desc = os.path.join(repo_path, self.cfg['file_meta_repo'])
+
+                r=utils.load_yaml_and_json(file_name_without_ext=path_to_repo_desc)
+                if r['return']>0: return r
+
+                meta = r['meta']
+
+                alias = meta.get('alias', '')
+                uid = meta.get('uid', '')
+
+                deps_on_other_repos = meta.get('deps', {})
+                
+                # Check that no repos exist with the same alias and/or uid 
+                # (to avoid adding forks and original repos)
+
+                for path in paths:
+                    path_to_existing_repo_desc = os.path.join(path, self.cfg['file_meta_repo'])
+                    r=utils.load_yaml_and_json(file_name_without_ext=path_to_existing_repo_desc)
                     if r['return']>0: return r
 
-                    meta = r['meta']
+                    existing_meta = r['meta']
 
-                    alias = meta.get('alias', '')
-                    uid = meta.get('uid', '')
+                    existing_alias = existing_meta.get('alias', '')
+                    existing_uid = existing_meta.get('uid', '')
 
-                    # Check that no repos exist with the same alias and/or uid 
-                    # (to avoid adding forks and original repos)
+                    # Check if repository already exists under different name
+                    exist = False
+                    if alias != '' and existing_alias !='' and alias == existing_alias:
+                        exist = True
 
-                    for path in paths:
-                        path_to_existing_repo_desc = os.path.join(path, self.cfg['file_meta_repo'])
-                        r=utils.load_yaml_and_json(file_name_without_ext=path_to_existing_repo_desc)
-                        if r['return']>0: return r
+                    if not exist and uid !='' and existing_uid !='' and uid == existing_uid:
+                        exist = True
 
-                        existing_meta = r['meta']
+                    if exist:
+                        return {'return':1, 'error':'CM repository with the same alias "{}" and/or uid "{}" already exists in {}'.format(alias, uid, path)}
 
-                        existing_alias = existing_meta.get('alias', '')
-                        existing_uid = existing_meta.get('uid', '')
+                    # Check if there is a conflict
+                    if len(deps_on_other_repos)>0:
+                        for d in deps_on_other_repos:
+                            d_alias = d.get('alias', '')
+                            d_uid = d.get('uid', '')
 
-                        exist = False
-                        if alias != '' and existing_alias !='' and alias == existing_alias:
-                            exist = True
+                            r = utils.match_objects(existing_uid, existing_alias, d_uid, d_alias)
+                            if r['return']>0: return r
+                            match = r['match']
 
-                        if not exist and uid !='' and existing_uid !='' and uid == existing_uid:
-                            exist = True
+                            if match:
+                                if d.get('conflict', False):
+                                    return {'return':1, 'error':'Can\'t install this repository because it conflicts with the already installed one ({}) - you may need to remove it to proceed (cm rm repo {})'.format(d_alias,d_alias)}
 
-                        if exist:
-                            return {'return':1, 'error':'CM repository with the same alias "{}" and/or uid "{}" already exists in {}'.format(alias, uid, path)}
+                                d['matched'] = True
 
+                                break
 
+                                    
+                # Check if has missing deps on other CM repos
+                for d in deps_on_other_repos:
+                    if not d.get('conflict', False) and not d.get('matched', False):
+                        warnings.append('You must install extra CM repository: cm pull repo {}'.format(d['alias']))
+                
                 paths.append(repo_path)
                 modified = True
 
@@ -249,10 +297,17 @@ class Repos:
             # Reload repos
             self.load(init=True)
 
-        return {'return':0}
+        rr = {'return':0}
+
+        if len(warnings)>0:
+            rr['warnings'] = warnings
+
+        return rr
 
     ############################################################
-    def pull(self, alias, url = '', branch = '', checkout = '', console = False, desc = '', prefix = '', depth = None, path_to_repo = None, checkout_only = False):
+    def pull(self, alias, url = '', branch = '', checkout = '', _dir = '', console = False, desc = '', prefix = '', depth = None, 
+                    path_to_repo = None, checkout_only = False, skip_zip_parent_dir = False,
+                    extra_cmd_git = '', extra_cmd_pip = '', new_branch = ''):
         """
         Clone or pull CM repository
 
@@ -260,13 +315,21 @@ class Repos:
             alias (str): CM repository alias
             (url) (str): Git repository URL
             (branch) (str): Git repository branch
+            (new_branch) (str): Create new  branch
             (checkout) (str): Git repository checkout
-           (checkout_only) (bool): only checkout existing repo
+            (checkout_only) (bool): only checkout existing repo
+            (_dir) (str): use repository in this directory
             (depth) (int): Git repository depth
             (console) (bool): if True, print some info to console
             (desc) (str): optional repository description
             (prefix) (str): sub-directory to be used inside this CM repository to store artifacts
             (path_to_repo) (str): force path to repo (useful to pull imported repos with non-standard path)
+            (checkout_only) (bool): only checkout Git repository but don't pull
+            (skip_zip_parent_dir) (bool): skip parent dir in CM ZIP repo (useful when 
+                                          downloading CM repo archives from GitHub)
+            (extra_cmd_git) (str): add this string to git clone
+            (extra_cmd_pip) (str): add this string to pip install when installing
+                                   requirements from CM repositories
 
         Returns: 
             (CM return dict):
@@ -276,11 +339,16 @@ class Repos:
 
             * (meta) (dict): meta of the CM repository
 
+            * (warnings) (list of str): warnings to install more CM repositories
+
         """
 
         # Prepare path
         if path_to_repo == None:
             path_to_repo = os.path.join(self.full_path_to_repos, alias)
+
+        if _dir != '': 
+            path_to_repo = os.path.join(path_to_repo, _dir)
 
         if console:
             print ('Local path: '+path_to_repo)
@@ -311,7 +379,10 @@ class Repos:
 
         download=True if url.find('.zip')>0 else False
 
-        if not checkout_only:
+        if checkout_only:
+            if not os.path.isdir(path_to_repo):
+                return {'return':1, 'error':'Trying to checkout repo "{}" that was not pulled'.format(alias)}
+        else:
             if download:
                 # If CM repo already exists
                 if os.path.isdir(path_to_repo):
@@ -335,11 +406,14 @@ class Repos:
 
                     os.chdir(self.full_path_to_repos)
 
-                    cmd = 'git clone '+url+' '+alias
+                    cmd = 'git clone ' + url + ' ' + alias
 
                     # Check if depth is set
-                    if depth!=None and depth!='':
-                        cmd+=' --depth '+str(depth)
+                    if depth != None and depth != '':
+                        cmd += ' --depth ' + str(depth)
+
+                    if extra_cmd_git !='' :
+                        cmd +=' ' + extra_cmd_git
 
             if console:
                 print (cmd)
@@ -370,10 +444,19 @@ class Repos:
             if console:
                 print ('Unpacking {} to {} ...'.format(pack_file, repo_path))
 
+            parent_dir = ''
+            
             # Unpacking zip
             for f in files:
                 if not f.startswith('..') and not f.startswith('/') and not f.startswith('\\'):
-                    file_path = os.path.join(repo_path, f)
+
+                    if skip_zip_parent_dir and parent_dir == '':
+                        parent_dir = f
+
+                    ff = f[len(parent_dir):] if parent_dir != '' else f
+                    
+                    file_path = os.path.join(repo_path, ff)
+
                     if f.endswith('/'):
                         # create directory
                         if not os.path.exists(file_path):
@@ -395,16 +478,33 @@ class Repos:
             os.remove(pack_file)
 
         # Check if branch 
+        if new_branch != '':
+            cmd = 'git checkout -b ' + new_branch
+
+            if console:
+                print ('')
+                print (cmd)
+                print ('')
+
+            r = os.system(cmd)
+
+            if r>0:
+                return {'return':1, 'error':'creating new git branch failed'}
+
         if branch != '' or checkout != '':
             cmd = 'git checkout'
 
             # When checkout only, we do not need -b for branch
             extra_flag = ' ' if checkout_only else ' -b '
 
-            if branch != '':
-                cmd += extra_flag + branch
+            if branch != '' and checkout != '':
+            # if both branch and checkout are specified, we do checkout and set remote branch
+                cmd = "git checkout -b " + branch + " " + checkout + " && git branch --set-upstream-to=origin/"+ branch + " " + branch  
 
-            if checkout!='':
+            elif branch != '':
+                cmd = 'git fetch && git checkout ' + branch
+
+            elif checkout!='':
                 cmd += ' ' + checkout
 
             if console:
@@ -479,6 +579,14 @@ class Repos:
             if not os.path.isdir(path_to_repo_with_prefix):
                 os.makedirs(path_to_repo_with_prefix)
 
+        # Check min CM version requirement
+        min_cm_version = meta.get('min_cm_version','').strip()
+        if min_cm_version != '':
+            from cmind import __version__ as current_cm_version
+            comparison = utils.compare_versions(current_cm_version, min_cm_version)
+            if comparison < 0:
+                return {'return':1, 'error':'This repository requires CM version >= {} while current CM version is {} - please update using "pip install cmind -U"'.format(min_cm_version, current_cm_version)}
+
         # Get final alias
         alias = meta.get('alias', '')
 
@@ -487,6 +595,31 @@ class Repos:
         r = self.process(path_to_repo, 'add')
         if r['return']>0: return r
 
+        warnings = r.get('warnings', [])
+
+        # Check if need to install requirements
+        install_python_requirements = meta.get('install_python_requirements', False)
+
+        if install_python_requirements:
+            import sys
+
+            python_exec = sys.executable
+
+            cmd = python_exec + ' -m pip install -r requirements.txt'
+
+            if extra_cmd_pip !='' :
+                cmd +=' ' + extra_cmd_pip
+
+            if console:
+                print ('')
+                print (cmd)
+                print ('')
+
+            r = os.system(cmd)
+
+            if r>0:
+                return {'return':1, 'error':'pip install -r requirements failed for this CM repository'}
+
         # Go back to original directory
         os.chdir(cur_dir)
 
@@ -494,7 +627,12 @@ class Repos:
             print ('')
             print ('CM alias for this repository: {}'.format(alias))
 
-        return {'return':0, 'meta':meta}
+        rr = {'return':0, 'meta':meta}
+        
+        if len(warnings)>0: rr['warnings'] = warnings
+
+        return rr
+
 
     ############################################################
     def init(self, alias, uid, path = '', console = False, desc = '', prefix = '', only_register = False):
@@ -521,6 +659,8 @@ class Repos:
             * path_to_repo_desc (str): path to repository description
             * path_to_repo_with_prefix (str): path to repository with prefix (== path_to_repo if prefix == "")
 
+            * (warnings) (list of str): warnings to install more CM repositories
+                
         """
 
         # Prepare path
@@ -573,11 +713,12 @@ class Repos:
             if r['return']>0: return r
 
             # Check requirements.txt
-            path_to_requirements = os.path.join(path_to_repo, 'requirements.txt')
-
-            if not os.path.isfile(path_to_requirements):
-                r = utils.save_txt(file_name = path_to_requirements, string = self.cfg['new_repo_requirements'])
-                if r['return']>0: return r
+            # 20241006: Moved the check for min cmind version to _cmr.yaml
+#            path_to_requirements = os.path.join(path_to_repo, 'requirements.txt')
+#
+#            if not os.path.isfile(path_to_requirements):
+#                r = utils.save_txt(file_name = path_to_requirements, string = self.cfg['new_repo_requirements'])
+#                if r['return']>0: return r
 
         else:
             r=utils.load_yaml_and_json(file_name_without_ext=path_to_repo_desc)
@@ -599,10 +740,16 @@ class Repos:
         r = self.process(path_to_repo, 'add')
         if r['return']>0: return r
 
-        return {'return':0, 'meta':meta, 
-                            'path_to_repo': path_to_repo, 
-                            'path_to_repo_desc': path_to_repo_desc,
-                            'path_to_repo_with_prefix': path_to_repo_with_prefix}
+        warnings = r.get('warnings', [])
+
+        rr =  {'return':0, 'meta':meta, 
+                           'path_to_repo': path_to_repo, 
+                           'path_to_repo_desc': path_to_repo_desc,
+                           'path_to_repo_with_prefix': path_to_repo_with_prefix}
+
+        if len(warnings)>0: rr['warnings'] = warnings
+
+        return rr
 
     ############################################################
     def delete(self, lst, remove_all = False, console = False, force = False):

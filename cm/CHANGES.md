@@ -1,3 +1,209 @@
+## V3.4.4.1
+   - added tabulate as requirement
+
+## V3.4.4
+   - improved error reporting in utils.load_json and utils.load_yaml
+   - added utils.substitute_template
+   - enhanced 'cm pull repo' based on user feedback
+
+## V3.4.3
+   - fixed pyproject.toml
+   - fixed docs generation
+   - improved  cm pull repo with branch and SHA (#1355)
+
+## V3.4.2
+   - added utils.flatten_dict
+   - added utils.safe_int
+   - added utils.safe_float
+   - added utils.get_set
+   - added utils.digits
+
+## V3.4.1
+   - reduced Python min version in pyproject.toml to 3.7 for backwards compatibility
+
+## V3.4.0
+   - added pyproject.toml to install CM and deprecated setup.py
+
+## V3.3.4
+   - added utils.path2: 
+     add quotes if spaces in path
+   - added utils.update_dict_with_flat_key: 
+     update dictionary via flat key (x.y.z)
+   - added utils.get_value_from_dict_with_flat_key
+     get value from dict via flat key (x.y.z)
+   - added utils.load_module
+     universal python module loader
+
+## V3.3.3
+   - fixed CM logger issue
+
+## V3.3.2
+   - moved "CMX stack error" to -log
+   - improved error reporting
+
+## V3.3.1
+   - allow "cm/cmx pull repo {URL}" along with "cm/cmx pull repo --url={URL}" 
+   - CMX: added "automation_full_path" to -log
+
+## V3.2.9
+   - fixed minor bug with JSON console output
+   - fixed minor bug with console in cmind.x function
+
+## V3.2.8
+   - fixed Docker test for mlperf-inference with cm4mlops
+   - minor improvements
+
+## V3.2.7
+   - minor improvement in error handling and messages
+
+## V3.2.6
+   - Fix type of "unknown_keys" to list to be serializable
+     https://github.com/mlcommons/ck/issues/1335
+   - Added support to print warning instead of error
+     (useful for help)
+
+## V3.2.5
+   - CMX: improved logging
+   - CMX: improved error handling (show module path and line number)
+   - CMX: fixed bug when detecting unknown control flag
+   - CMX: do not change output to json if -j or --json
+          just print json in the end ...
+
+## V3.2.3
+   - added --new_branch to `cm pull repo` and `cm checkout repo`
+   - fixed a bug in `cm show repo` (removed dependency on cm4mlops 
+     and used subprocess.check_output)
+
+## V3.2.2
+   - fixed action `help` and flag `-h` to work with all automations:
+     https://github.com/mlcommons/ck/issues/1325
+
+## V3.2.1
+   - added `-f` to the CMX core to be backwards compatible 
+     with CM commands like `cm rm cache -f`
+
+## V3.2.0
+   - added `utils.test_input` to test if input has keys
+     and report them as error
+   - added `prefix_cmx` key to cmr.yaml to customize `cmx pull repo`
+   - improved CMX logging (-log and -logfile):
+     https://github.com/mlcommons/ck/issues/1317
+   - print control flags in help (cmx -h | cmx -help):
+     https://github.com/mlcommons/ck/issues/1318
+   - fail if control flag is not recognized:
+     https://github.com/mlcommons/ck/issues/1315
+   - added -repro flag to record various info to cmx-repro directory
+     https://github.com/mlcommons/ck/issues/1319
+   - print call stack when error > 32 to be able to trace error cause:
+     https://github.com/mlcommons/ck/issues/1320
+     can be combined with -log=debug and -logfile
+
+## V3.1.0
+   - simplified and changed process_input function API
+
+## V3.0.4
+   - splitted automation, artifact and artifacts into name and repo 
+     in the access function to simplify handling of artifacts:
+     https://github.com/mlcommons/ck/issues/1311
+
+## V3.0.3
+   - added -raise for https://github.com/mlcommons/ck/issues/1309
+   - added --extra_cmd_git and --extra_cmd_pip to cm/cmx pull repo
+     https://github.com/mlcommons/ck/issues/1308
+
+## V3.0.2
+   - fixed cmx init
+
+## V3.0.1
+   - fixed minor bug in CM core
+
+## V3.0.0
+   - added `min_cm_version` to the CM repo description (cmr.yaml)
+     to check compatibility of repositories with CM. 
+     It is needed to implement new features in CM core and repositories
+     requested by our users that may not work with previous CM versions.
+     Hence, starting a new version.
+
+   - started prototyping a simpler and cleaner version of `cmind.access()`.
+     it should not influence existing automations and workflows 
+     and will co-exist in the future.
+
+## V2.4.0
+   - added `install_python_requirements` to the CM repo description (cmr.yaml)
+     to install requirements to a current python with CM installation if needed
+
+## V2.3.9
+   - added `--min` == `--skip` to `cm init` for readability
+   - added `--checkout` to `cm init` to handle checkout
+   - added support to set CLI parameter to False if it ends with `-`, 
+     i.e. `--no-cache-` -> `i['no_cache'] = False`
+     `--no-cache` -> `i['no_cache'] = True`
+
+## V2.3.8
+   - added `--skip` and `--url` flags to `cm init`
+   - added support to pull CM repos using --url with "git@"
+
+## V2.3.7
+   - added cmind.core.debug to make it easier to debug CM automations
+   - added env CM_CORE_SKIP_FIX_REPO_PATH to skip fixing non-existent repo paths
+
+## V2.3.6
+   - fixed "cm init" on Windows (do not check wget and curl - managed via CM scripts)
+ 
+## V2.3.5
+   - added "cm init" to check system deps and pull mlcommons@cm4mlops by default
+   - fixed branch checkout in "cm pull repo"
+
+## V2.3.4
+   - minor documentation update
+
+## V2.3.3
+   - minor documentation update for MLPerf inference v4.1
+
+## V2.3.2
+   - fixed "cm pull repo --branch={BRANCH NAME}" behavior for all OS
+   - added GitHub tests for Windows
+   - added more tests for CM-MLPerf workflows for different hardware
+
+## v2.3.1
+   - various minor fixes based on user feedback
+
+## V2.3.0
+   - added automatic CM repo alias from mlcommons@ck to mlcommons@cm4mlops 
+     unless branch and checkout are used!
+   - improved CM python package API generation and uploaded to https://cknowledge.org/docs/cm 
+     (should move to MLCommons when ready)
+   - added timezone to utils.get_current_date_time to correctly time stamp various experiments!
+
+## V2.2.0
+   - fixed detection of a CM artifact using 'cm info .' when inside virtual env entries.
+   - added "cmind.utils.debug_here" function to attach remote Python debugger
+     and tested with Visual Studio Code.
+   - added test to avoid checking out CM repo that was not pulled
+   - added utils.safe_load_json to return empty dict if file doesn't exist
+   - added utils.compare_versions to check min version requirements for automations and entries
+   - removed outdated convert_path (https://github.com/mlcommons/ck/issues/1219)
+   - added utils.check_if_true_yes_on (https://github.com/mlcommons/ck/issues/1216)
+   - check "min_cm_version" in CM automations and CM scripts (use _cm.yaml or _cm.json)
+
+## V2.1.2
+   - added support for deps on other CM repos 
+     (if conflict = True - then fail if this repo is already installed
+      otherwise print that repo is missing)
+
+## V2.1.1
+   - added --skip-zip-parent-dir to "cm pull repo --url=..." to support downloading 
+     of stable CM-MLOps repositories from https://github.com/mlcommons/cm4mlops/releases .
+
+
+## V2.1.0
+   - changed outdated version of CM in requirements when creating new repos
+   - fixed minor bug in `cm add automation {name}` 
+   - added dependency on giturlparse to support private repos in containers
+   - fixed bug when adding automation in the local repository: "cm add . {automation_name}"
+   - moved cm-mlops repo to a standalone MLCommons repo:
+     https://github.com/mlcommons/cm4mlops
+
 ## V2.0.4
    - added skip of delayed help to simplify output of `cmr [tags] --help`
    - revisited automatically generated READMEs for CM scripts (automation recipes)

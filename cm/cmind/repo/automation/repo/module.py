@@ -1,7 +1,12 @@
+# CM automation to manage CM repositories
+#
+# Written by Grigori Fursin
+
 import os
 
 from cmind.automation import Automation
 from cmind import utils
+from cmind import net
 
 class CAutomation(Automation):
     """
@@ -26,11 +31,18 @@ class CAutomation(Automation):
           (url) (str): URL of a repository
           (pat) (str): Personal Access Token (if supported and url=='')
           (branch) (str): Git branch
+          (new_branch) (str): Create new Git branch
           (checkout) (str): Git checkout
           (checkout_only) (bool): only checkout existing repo
+          (dir) (str): use repository in this directory
           (depth) (int): Git depth
           (desc) (str): brief repository description (1 line)
           (prefix) (str): extra directory to keep CM artifacts
+          (skip_zip_parent_dir) (bool): skip parent dir in CM ZIP repo (useful when 
+                                        downloading CM repo archives from GitHub)
+          (extra_cmd_git) (str): add this string to git clone
+          (extra_cmd_pip) (str): add this string to pip install when installing
+                                 requirements from CM repositories
 
         Returns:
           (CM return dict):
@@ -43,14 +55,24 @@ class CAutomation(Automation):
 
         console = i.get('out') == 'con'
 
-        alias = i.get('artifact','')
-        url = i.get('url','')
-        desc = i.get('desc','')
-        prefix = i.get('prefix','')
-        pat = i.get('pat','')
+        alias = i.get('artifact', '')
+        url = i.get('url', '')
+        desc = i.get('desc', '')
+        prefix = i.get('prefix', '')
+        pat = i.get('pat', '')
+
+        extra_cmd_git = i.get('extra_cmd_git', '')
+        extra_cmd_pip = i.get('extra_cmd_pip', '')
 
         checkout_only = i.get('checkout_only', False)
+        skip_zip_parent_dir = i.get('skip_zip_parent_dir', False)
 
+        # Check alias is URL
+        if url == '' and (alias.startswith('https://') or alias.startswith('git@')):
+            url = alias
+            alias = ''
+
+        # Process URL and alias
         if url == '':
             if alias != '':
                 url = self.cmind.cfg['repo_url_prefix']
@@ -75,11 +97,17 @@ class CAutomation(Automation):
                else:
                    if alias.endswith('.git'): alias=alias[:-4]
 
-                   j = alias.find('//')
-                   if j>=0:
-                       j1 = alias.find('/', j+2)
-                       if j1>=0:
-                           alias = alias[j1+1:].replace('/','@')
+                   if alias.startswith('git@'):
+                       j = alias.find(':')
+                       if j>=0:
+                           alias = alias[j+1:].replace('/','@')
+                   else:
+                       j = alias.find('//')
+                       if j>=0:
+                           j1 = alias.find('/', j+2)
+                           if j1>=0:
+                               alias = alias[j1+1:].replace('/','@')
+
 
         if url == '':
             pull_repos = []
@@ -96,10 +124,38 @@ class CAutomation(Automation):
                     pull_repos.append({'alias': os.path.basename(repo_path),
                                        'path_to_repo': repo_path})
         else:
+            # We are migrating cm-mlops repo from mlcommons@ck to a clean and new mlcommons@cm4mlops:
+            # https://github.com/mlcommons/ck/issues/1215
+            # As discussed, we should have a transparent redirect with a warning
+            # unless branch/checkout is used - in such case we keep old repository
+            # for backwards compatibility and reproducibility
+
+            branch = i.get('branch', '')
+            new_branch = i.get('new_branch', '')
+            checkout = i.get('checkout', '')
+            _dir = i.get('dir', '')
+
+            r = net.request({'get': {'action': 'check-migration-repo-notes', 'repo': url, 'branch': branch, 'checkout': checkout}})
+            notes = r.get('dict', {}).get('notes','')
+            if notes !='':
+                print (notes)
+
+            if alias == 'mlcommons@ck' and branch == '' and checkout == '' and _dir == '':
+                print ('=========================================================================')
+                print ('Warning: mlcommons@ck was automatically changed to mlcommons@cm4mlops.')
+                print ('If you want to use older mlcommons@ck repository, use branch or checkout.')
+                print ('=========================================================================')
+
+                alias = 'mlcommons@cm4mlops'
+                url = url.replace('mlcommons/ck', 'mlcommons/cm4mlops')
+
+
             pull_repos = [{'alias':alias,
                            'url':url,
-                           'branch': i.get('branch', ''),
-                           'checkout': i.get('checkout', ''),
+                           'branch': branch,
+                           'new_branch': new_branch,
+                           'checkout': checkout,
+                           'dir': _dir,
                            'depth': i.get('depth', '')}]
 
 
@@ -107,25 +163,36 @@ class CAutomation(Automation):
         repo_meta = {}
         repo_metas = {}
 
+        warnings = []
+
+#        if not self.cmind.xlogger == None:
+#            self.cmind.log(f"x repo log: {pull_repos}", "debug")
+        
         for repo in pull_repos:
              alias = repo['alias']
              url = repo.get('url', '')
              branch = repo.get('branch','')
+             new_branch = repo.get('new_branch','')
              checkout = repo.get('checkout','')
              depth = repo.get('depth','')
              path_to_repo = repo.get('path_to_repo', None)
+             _dir = repo.get('dir', '')
 
              if console:
                  print (self.cmind.cfg['line'])
-                 print ('Alias:    {}'.format(alias))
+                 print ('Alias:      {}'.format(alias))
                  if url!='':
-                     print ('URL:      {}'.format(url))
+                     print ('URL:        {}'.format(url))
                  if branch!='':
-                     print ('Branch:   {}'.format(branch))
+                     print ('Branch:     {}'.format(branch))
+                 if new_branch!='':
+                     print ('New branch: {}'.format(new_branch))
                  if checkout!='':
-                     print ('Checkout: {}'.format(checkout))
+                     print ('Checkout:   {}'.format(checkout))
+                 if _dir!='':
+                     print ('Directory:  {}'.format(_dir))
                  if depth!='' and depth!=None:
-                     print ('Depth:    {}'.format(str(depth)))
+                     print ('Depth:      {}'.format(str(depth)))
                  print ('')
 
              # Prepare path to repo
@@ -134,18 +201,26 @@ class CAutomation(Automation):
              r = repos.pull(alias = alias,
                             url = url,
                             branch = branch,
+                            new_branch = new_branch,
                             checkout = checkout,
+                            _dir = _dir,
                             console = console,
                             desc=desc,
                             prefix=prefix,
                             depth=depth,
                             path_to_repo=path_to_repo,
-                            checkout_only=checkout_only)
+                            checkout_only=checkout_only,
+                            skip_zip_parent_dir=skip_zip_parent_dir,
+                            extra_cmd_git = extra_cmd_git,
+                            extra_cmd_pip = extra_cmd_pip)
              if r['return']>0: return r
 
              repo_meta = r['meta']
 
              repo_metas[alias] = repo_meta
+
+             if len(r.get('warnings', []))>0:
+                 warnings += r['warnings']
 
         if len(pull_repos)>0 and self.cmind.use_index:
             if console:
@@ -153,6 +228,8 @@ class CAutomation(Automation):
 
             ii = {'out':'con'} if console else {}
             rx = self.reindex(ii)
+
+        print_warnings(warnings)    
 
         return {'return':0, 'meta':repo_meta, 'metas': repo_metas}
 
@@ -295,8 +372,10 @@ class CAutomation(Automation):
                            print ('  Alias:            {}'.format(alias))
 
                        print ('  UID:              {}'.format(uid))
+
                        if desc != '':
                            print ('Description:        {}'.format(desc))
+
                        print ('Git:                {}'.format(str(git)))
 
                        if git:
@@ -304,25 +383,33 @@ class CAutomation(Automation):
                            branch = ''
                            checkout = ''
 
-                           r = self.cmind.access({'action':'system', 'automation':'utils', 'path':path, 'cmd':'git config --get remote.origin.url'})
-                           if r['return'] == 0 and r['ret'] == 0:
-                               url = r['stdout']
+                           import subprocess
 
-                           r = self.cmind.access({'action':'system', 'automation':'utils', 'path':path, 'cmd':'git rev-parse --abbrev-ref HEAD'})
-                           if r['return'] == 0 and r['ret'] == 0:
-                               branch = r['stdout']
-                               
-                           r = self.cmind.access({'action':'system', 'automation':'utils', 'path':path, 'cmd':'git rev-parse HEAD'})
-                           if r['return'] == 0 and r['ret'] == 0:
-                               checkout = r['stdout']
+                           cur_dir = os.getcwd()
+
+                           os.chdir(path)
+
+                           try:
+                              url = subprocess.check_output('git config --get remote.origin.url', shell=True).decode("utf-8").strip()
+                           except subprocess.CalledProcessError as e:
+                              url = ''
+
+                           try:
+                              branch = subprocess.check_output('git rev-parse --abbrev-ref HEAD', shell=True).decode("utf-8").strip()
+                           except subprocess.CalledProcessError as e:
+                              branch = ''
                            
+                           try:
+                              checkout = subprocess.check_output('git rev-parse HEAD', shell=True).decode("utf-8").strip()
+                           except subprocess.CalledProcessError as e:
+                              checkout = ''
                            
                            if url!='':
-                               print ('  URL:              {}'.format(url))
+                               print (f'  URL:              {url}')
                            if branch!='':
-                               print ('  Branch:           {}'.format(branch))
+                               print (f'  Branch:           {branch}')
                            if checkout!='':
-                               print ('  Checkout:         {}'.format(checkout))
+                               print (f'  Checkout:         {checkout}')
 
                     else:
                        print ('{},{} = {}'.format(alias, uid, path))
@@ -576,6 +663,9 @@ class CAutomation(Automation):
         if self.cmind.use_index:
             ii = {'out':'con'} if console else {}
             rx = self.reindex(ii)
+        
+        warnings = r.get('warnings', [])
+        print_warnings(warnings)
         
         return r
 
@@ -976,7 +1066,8 @@ class CAutomation(Automation):
                 r=utils.find_file_in_current_directory_or_above([self.cmind.cfg['file_cmeta']+'.json', 
                                                                  self.cmind.cfg['file_cmeta']+'.yaml'],
                                                                  path_to_start = path,
-                                                                 reverse = reverse)
+                                                                 reverse = reverse,
+                                                                 path_to_stop = path_to_repo_real)
                 if r['return']>0: return r
 
                 artifact_found = r['found']
@@ -1192,3 +1283,14 @@ def convert_ck_dir_to_cm(rpath):
                                if r['return']>0: return r
 
     return {'return':0}
+
+def print_warnings(warnings):
+
+    if len(warnings)>0:
+        print ('')
+        print ('WARNINGS:')
+        print ('')
+        for w in warnings:
+            print ('  {}'.format(w))
+                                                                            
+    return

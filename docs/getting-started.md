@@ -2,32 +2,6 @@
 
 # Collective Mind Getting Started Guide and FAQ
 
-<details>
-<summary>Click here to see the table of contents.</summary>
-
-* [Collective Mind Getting Started Guide and FAQ](#collective-mind-getting-started-guide-and-faq)
-  * [Why CM?](#why-cm?)
-  * [CM automation recipe for image classification](#cm-automation-recipe-for-image-classification)
-  * [How CM scripts works?](#how-cm-scripts-works?)
-  * [How CM runs automation recipes?](#how-cm-runs-automation-recipes?)
-  * [How CM unifies inputs, outputs and environment variables?](#how-cm-unifies-inputs-outputs-and-environment-variables?)
-  * [How CM chains automation recipes into portable workflows?](#how-cm-chains-automation-recipes-into-portable-workflows?)
-  * [How to add new CM scripts?](#how-to-add-new-cm-scripts?)
-  * [How to customize CM scripts using variations?](#how-to-customize-cm-scripts-using-variations?)
-  * [How to cache and reuse CM scripts' output?](#how-to-cache-and-reuse-cm-scripts'-output?)
-  * [How to use CM with Python virtual environments?](#how-to-use-cm-with-python-virtual-environments?)
-  * [How to debug CM scripts?](#how-to-debug-cm-scripts?)
-  * [How to extend/improve CM scripts?](#how-to-extend/improve-cm-scripts?)
-  * [How to use CM with containers?](#how-to-use-cm-with-containers?)
-  * [How to use CM GUI to run automation recipes?](#how-to-use-cm-gui-to-run-automation-recipes?)
-  * [How to run MLPerf benchmarks via CM?](#how-to-run-mlperf-benchmarks-via-cm?)
-  * [How to use CM to reproduce research papers?](#how-to-use-cm-to-reproduce-research-papers?)
-  * [How to use CM as a common interface to other projects?](#how-to-use-cm-as-a-common-interface-to-other-projects?)
-  * [Where to read about the CM vision and history?](#where-to-read-about-the-cm-vision-and-history?)
-  * [How to get in touch with the CM community?](#how-to-get-in-touch-with-the-cm-community?)
-
-</details>
-
 
 ## Why CM?
 
@@ -103,7 +77,7 @@ operating system using a few CM commands:
 
 ```bash
 pip install cmind
-cm pull repo mlcommons@ck
+cm pull repo mlcommons@cm4mlops --checkout=dev
 cm run script "python app image-classification onnx _cpu"
 ```
 
@@ -166,7 +140,7 @@ CM will then try to match all your tags without `_` prefix (`_` in tags mark
 the so-called CM script variations that customize a give script behavior 
 and will be described later)  with a `tags` list in the CM meta-description dictionary.
 In our case, it will match the corresponding [`_cm.yaml`](https://github.com/mlcommons/ck/blob/master/cm-mlops/script/app-image-classification-onnx-py/_cm.yaml#L9) 
-in `$HOME/CM/repos/mlcommons@ck/script/app-image-classification-onnx-py/_cm.yaml` - 
+in `$HOME/CM/repos/mlcommons@cm4mlops/script/app-image-classification-onnx-py/_cm.yaml` - 
 a wrapper for a given CM automation recipe.
 
 *Note that if you use unique ID instead of tags to identify automation (such as `3d5e908e472b417e`), 
@@ -218,7 +192,7 @@ Such architecture makes it possible to easily chain existing user scripts and to
 instead of substituting or rewriting them.
 
 It is possible to chain CM scripts using simple 
-[`deps` list](https://github.com/mlcommons/ck/blob/master/cm-mlops/script/app-image-classification-onnx-py/_cm.yaml#L21) 
+[`deps` list](https://github.com/mlcommons/ck/blob/master/cm-mlops/script/app-image-classification-onnx-py/_cm.yaml#L23) 
 in a meta description of a given script:
 
 <sup>
@@ -288,7 +262,7 @@ cmr "python app image-classification onnx _cpu" --input=computer_mouse.jpg -j
  variables at the host. However, CM allows you to do that 
  by explicitly specifying which environment variables and state keys
  will be updated at the host using `new_env_keys` and `new_state_keys`
- in the meta of a given script as shown [here](https://github.com/mlcommons/ck/blob/master/cm-mlops/script/app-image-classification-onnx-py/_cm.yaml#L83).
+ in the meta of a given script as shown [here](https://github.com/mlcommons/ck/blob/master/cm-mlops/script/app-image-classification-onnx-py/_cm.yaml#L88).
  This helped us make behavior of complex CM workflows more deterministic
  and reproducible.*
 
@@ -320,7 +294,7 @@ detect or install Python and PIP packages, download and preprocess data sets and
 
 ## How to add new CM scripts?
 
-One the main requirement for CM was to provide a very light-weight connectors 
+One of the main requirement for CM was to provide a very light-weight connectors 
 between existing automation scripts and tools rather than substituting them.
 
 You can add your own scripts and tools to CM using the following command
@@ -340,7 +314,7 @@ You can also run it from python as follows:
 import cmind
 output=cmind.access({'action':'run', 
                      'automation':'script', 
-                     'tags':'my,script})
+                     'tags':'my,script'})
 if output['return']==0: print (output)
 ```
 
@@ -438,7 +412,7 @@ export CM_SCRIPT_EXTRA_CMD="--adr.python.name=mlperf"
 
 If you now run our image classification automation recipe, 
 it will reuse model and dataset from the cache, but will
-use 
+use the newly created virtual environment `mlperf` for running the script.
 
 
 ## How to debug CM scripts?

@@ -17,16 +17,18 @@ The archive of this discontinued framework is available in the [/ck directory](.
 
 # MLCommons Collective Mind (CM)
 
-Grigori donated the CK technology to [MLCommons](https://mlcommons.org) in 2022 to benefit everyone and help establish
-the [MLCommons Task Force on Automation and Reproducibility](taskforce.md) co-led with [Arjun Suresh](https://www.linkedin.com/in/arjunsuresh).
+Grigori donated the CK technology to [MLCommons](https://mlcommons.org) in 2022 to benefit everyone,
+prototyped a new version of CK called [Collective Mind (CM)](https://github.com/mlcommons/ck/tree/master/cm) 
+with [portable and reusable automation recipes for universal benchmarking and optimization of applications
+and systems (CM4MLOps scripts and workflows)](https://github.com/mlcommons/cm4mlops),
+and helped establish the [MLCommons Task Force on Automation and Reproducibility](taskforce.md)
+co-led with Arjun Suresh.
 
-This collaborative engineering effort resulted in the new version of CK called Collective Mind (CM)
-with [simple, portable and ready-to-use automation recipes](list_of_scripts.md) for MLOps and DevOps 
-developed by scratch with great help, feedback and contributions 
-from [the community](https://github.com/mlcommons/ck/blob/master/CONTRIBUTING.md).
+You can learn more about the CM concept and motivation from the [keynote at ACM REP'23](https://doi.org/10.5281/zenodo.8105339)
+and this [white paper](https://arxiv.org/abs/2406.16791).
 
-CM is now officially supported, developed and maintained by [MLCommons.org](https://mlcommons.org)
-with the help from [cKnowledge.org](https://cKnowledge.org) and [cTuning.org](https://cTuning.org).
+# CMX (the next generation of CM and CM4MLOps)
 
-Please go to this [GitHub page](https://github.com/mlcommons/ck) to learn more about this project
-and check [the slides from ACM REP'23 keynote about CM](https://doi.org/10.5281/zenodo.8105339).
+Grigori started prototyping CMX during summer 2024 to simplify CM interfaces based on user feedback. 
+It is available as a part of the standard [CM package at PYPI](https://pypi.org/project/cmind). 
+Please reach out to learn more about our plans.

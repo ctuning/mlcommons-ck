@@ -2,7 +2,12 @@
 
 ### [News from the MLCommons Task Force on Automation and Reproducibility](taskforce.md)
 
+#### 202406
+
+* We published a white paper about the Collective Knowledge Playground, Collective Mind, MLPerf and CM4MLOps: https://arxiv.org/abs/2406.16791
+
 #### 202403
+
 * [cKnowledge](https://cKnowledge.org) has completed a collaborative engineering project with MLCommons 
   to enhance CM workflow automation to run MLPerf inference benchmarks
   across different models, software and hardware from different vendors in a unified way: [GUI](https://access.cknowledge.org/playground/?action=howtorun).
@@ -34,7 +39,7 @@
 * [Grigori Fursin](https://cKnowledge.org/gfursin) gave an invited talk at [AVCC'23](https://avcc.org/avcc2023) about our MLCommons CM automation language and how it can help 
   to develop modular, portable and technology-agnostic benchmarks.
 
-* [Arjun Suresh](https://www.linkedin.com/in/arjunsuresh) and [Grigori Fursin](https://cKnowledge.org/gfursin) 
+* [Grigori Fursin](https://cKnowledge.org/gfursin) 
   gave an [IISWC'23 tutorial](https://iiswc.org/iiswc2023/#/program/) about our CM workflow automation language 
   and how it can make it easier for researchers to reproduce their projects and validate in the real world
   across rapidly evolving software and hardware.

@@ -236,7 +236,7 @@ You can pull all past MLPerf results in the CM format, import your current exper
 with derived metrics on your system using the Collective Knowledge Playground as follows:
 
 ```bash
-cm pull repo mlcommons@ck_mlperf_results
+cm pull repo mlcommons@cm4mlperf-results
 cmr "get git repo _repo.https://github.com/ctuning/mlperf_inference_submissions_v3.1" \
     --env.CM_GIT_CHECKOUT=main \
     --extra_cache_tags=mlperf-inference-results,community,version-3.1
@@ -258,7 +258,6 @@ You can see example of this visualization GUI [online](https://access.cknowledge
 ## Acknowledgments
 
 [Collective Mind](https://doi.org/10.5281/zenodo.8105339) is an open community project 
-led by [Grigori Fursin](https://cKnowledge.org/gfursin) and [Arjun Suresh](https://www.linkedin.com/in/arjunsuresh) 
 to modularize AI benchmarks and provide a common interface to run them across diverse models, data sets, software and hardware - 
 we would like to thank all our [great contributors](../../../CONTRIBUTING.md) for their feedback, support and extensions!
 

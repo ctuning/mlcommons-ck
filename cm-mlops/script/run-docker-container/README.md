@@ -1,3 +1,7 @@
+**Note that this script is archived and moved [here](https://github.com/mlcommons/cm4mlops/tree/main/script/run-docker-container).**
+
+
+
 Automatically generated README for this automation recipe: **run-docker-container**
 
 Category: **Docker automation**
@@ -119,6 +123,7 @@ ___
 * `--recreate=value`  &rarr;  `CM_DOCKER_IMAGE_RECREATE=value`
 * `--run_cmd=value`  &rarr;  `CM_DOCKER_RUN_CMD=value`
 * `--run_cmd_extra=value`  &rarr;  `CM_DOCKER_RUN_CMD_EXTRA=value`
+* `--save_script=value`  &rarr;  `CM_DOCKER_SAVE_SCRIPT=value`
 * `--script_tags=value`  &rarr;  `CM_DOCKER_RUN_SCRIPT_TAGS=value`
 * `--shm_size=value`  &rarr;  `CM_DOCKER_SHM_SIZE=value`
 
