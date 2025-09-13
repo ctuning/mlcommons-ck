@@ -1,5 +1,5 @@
-Collective Knowledge (CK), Collective Mind (CM) and Common Metadata eXchange (CMX)
-were created by [Grigori Fursin](https://arxiv.org/abs/2406.16791),
+Collective Knowledge (CK), Collective Mind (CM), Common Metadata eXchange (CMX)
+and MLPerf automations were created by [Grigori Fursin](https://arxiv.org/abs/2406.16791),
 sponsored by cKnowledge.org and cTuning.org, and donated to MLCommons 
 to benefit everyone. Since then, this open-source automation technology
 (CM, CMX, MLPerf automations, etc) is being extended 
