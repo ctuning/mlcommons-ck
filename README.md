@@ -126,7 +126,7 @@ Copyright (c) 2014-2021 cTuning foundation
 
 ## Maintainers
 
-* Legacy CM, CM4MLOps and MLPerf automations: [MLCommons infra WG](https://mlcommons.org)
+* Legacy CM, CM4MLOps, MLC and MLPerf automations: [MLCommons infra WG](https://mlcommons.org)
 * CMX (the next generation of CM since 2025): [Grigori Fursin](https://cKnowledge.org/gfursin)
 
 ## Concepts
